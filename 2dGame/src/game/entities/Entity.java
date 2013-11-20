@@ -1,7 +1,7 @@
 package game.entities;
 
 import game.gfx.Screen;
-import level.Level;
+import game.level.Level;
 
 public abstract class Entity
 {
