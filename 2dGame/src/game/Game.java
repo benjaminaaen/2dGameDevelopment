@@ -1,5 +1,11 @@
 package game;
 
+import game.entities.Player;
+import game.gfx.Colours;
+import game.gfx.Font;
+import game.gfx.Screen;
+import game.gfx.SpriteSheet;
+
 import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Dimension;
@@ -9,6 +15,8 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 
 import javax.swing.JFrame;
+
+import level.Level;
 
 public class Game extends Canvas implements Runnable
 {
@@ -24,10 +32,19 @@ public class Game extends Canvas implements Runnable
 
 	public boolean running = false;
 	public int tickCount = 0;
-	
-	private BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
-	private int[] pixels = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
-	
+
+	private BufferedImage image = new BufferedImage(WIDTH, HEIGHT,
+			BufferedImage.TYPE_INT_RGB);
+	private int[] pixels = ((DataBufferInt) image.getRaster().getDataBuffer())
+			.getData();
+	private int[] colours = new int[6 * 6 * 6];
+
+	private Screen screen;
+	public InputHandler input;
+
+	public Level level;
+	public Player player;
+
 	public Game()
 	{
 		setMinimumSize(new Dimension(WIDTH * SCALE, HEIGHT * SCALE));
@@ -35,13 +52,43 @@ public class Game extends Canvas implements Runnable
 		setPreferredSize(new Dimension(WIDTH * SCALE, HEIGHT * SCALE));
 
 		frame = new JFrame(NAME);
+
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setLayout(new BorderLayout());
+
 		frame.add(this, BorderLayout.CENTER);
 		frame.pack();
+
 		frame.setResizable(false);
 		frame.setLocationRelativeTo(null);
 		frame.setVisible(true);
+	}
+
+	public void init()
+	{
+		int index = 0;
+		for (int r = 0; r < 6; r++)
+		{
+
+			for (int g = 0; g < 6; g++)
+			{
+
+				for (int b = 0; b < 6; b++)
+				{
+					int rr = (r * 255 / 5);
+					int gg = (g * 255 / 5);
+					int bb = (b * 255 / 5);
+
+					colours[index++] = rr << 16 | gg << 8 | bb;
+				}
+			}
+		}
+
+		screen = new Screen(WIDTH, HEIGHT, new SpriteSheet("/sprite_Sheet.png"));
+		input = new InputHandler(this);
+		level = new Level(255,255);
+		player = new Player(level, 0, 0, input);
+		level.addEntity(player);
 	}
 
 	public synchronized void start()
@@ -55,7 +102,6 @@ public class Game extends Canvas implements Runnable
 		running = false;
 	}
 
-	@Override
 	public void run()
 	{
 		long lastTime = System.nanoTime();
@@ -66,6 +112,8 @@ public class Game extends Canvas implements Runnable
 
 		long lastTimer = System.currentTimeMillis();
 		double delta = 0;
+
+		init();
 
 		while (running)
 		{
@@ -85,7 +133,8 @@ public class Game extends Canvas implements Runnable
 			try
 			{
 				Thread.sleep(2);
-			} catch (InterruptedException e)
+			}
+			catch (InterruptedException e)
 			{
 				e.printStackTrace();
 			}
@@ -105,25 +154,53 @@ public class Game extends Canvas implements Runnable
 		}
 	}
 
+
 	public void tick()
 	{
 		tickCount++;
-		
-		for (int i = 0; i < pixels.length; i++)
-		{
-			pixels[i] = i + tickCount;
-		}
+		level.tick();
 	}
 
 	public void render()
 	{
 		BufferStrategy bs = getBufferStrategy();
-		if(bs == null)
+		if (bs == null)
 		{
 			createBufferStrategy(3);
 			return;
 		}
+
+		int xOffset = player.x - (screen.width / 2);
+		int yOffset = player.y - (screen.height / 2);
+
+		level.renderTiles(screen, xOffset, yOffset);
+
+		for(int x = 0; x < level.width; x++)
+		{
+			int colour = Colours.get(-1, -1, -1, 000);
+			if(x%10 == 0 && x != 0)
+			{
+				colour = Colours.get(-1, -1, -1, 500);
+			}
+			Font.render((x % 10) + "",  screen, 0 + (x * 8), 0, colour);
+		}
 		
+		level.renderEntities(screen);
+		
+		// String msg = "TEXT ON SCREEN!";
+		// Font.render(msg, screen, screen.xOffset + screen.width
+		// / 2- (msg.length() * 8/2), screen.yOffset + screen.height / 2,
+		// Colours.get(-1, -1, -1, 000));
+
+		for (int y = 0; y < screen.height; y++)
+		{
+			for (int x = 0; x < screen.width; x++)
+			{
+				int colourCode = screen.pixels[x + y * screen.width];
+				if (colourCode < 255)
+					pixels[x + y * WIDTH] = colours[colourCode];
+			}
+		}
 		Graphics g = bs.getDrawGraphics();
 		g.drawImage(image, 0, 0, getWidth(), getHeight(), null);
 		g.dispose();
